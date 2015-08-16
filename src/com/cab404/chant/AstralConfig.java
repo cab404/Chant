@@ -37,7 +37,7 @@ public class AstralConfig {
     /**
      * How long do we wait after connection became idle to send data to receivers.
      */
-    public long tts = 5;
+    public long tts = 0;
 
     /**
      * After that or less space remains in fetch buffer, we are going to enlarge it

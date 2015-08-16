@@ -30,7 +30,15 @@ public class SimpleServer implements Runnable {
             Astral astral = new Astral(new AstralConfig(), new ChannelHandlerAssigner() {
                 @Override
                 public boolean assignHandler(SocketReadInfo info) {
-                    System.out.println("SOME DATA! -> " + new String(info.lastUsedArray[0].array()));
+                    if (info.lastSize < 38000) return false;
+                    System.out.println("SOME DATA! -> ");
+                    StringBuilder data = new StringBuilder();
+                    for (int i = 0; i < info.lastUsedArray.length; i++) {
+                        ByteBuffer bb = info.lastUsedArray[i];
+                        data.append(new String(bb.array(), 0, bb.position()));
+                    }
+                    System.out.println(data);
+
                     System.out.println("Responding with helloworld");
                     try {
                         info.channel.write(
@@ -63,16 +71,15 @@ public class SimpleServer implements Runnable {
                 int select = connect_selector.select();
                 if (select != 0) {
                     rt.wakeup();
-                    synchronized (rt) {
-                        for (SelectionKey ignored : connect_selector.selectedKeys()) {
-                            SocketChannel client = ssock.accept();
-                            System.out.println("Accepted connection...");
-                            client.configureBlocking(false);
-                            System.out.println("Configured connection...");
-                            rt.register(client);
-                            System.out.println("...initialized connection sequence to " + client.socket().getInetAddress());
-                        }
+                    for (SelectionKey ignored : connect_selector.selectedKeys()) {
+                        SocketChannel client = ssock.accept();
+                        System.out.println("Accepted connection...");
+                        client.configureBlocking(false);
+                        System.out.println("Configured connection...");
+                        rt.register(client);
+                        System.out.println("...initialized connection sequence to " + client.socket().getInetAddress());
                     }
+                    rt.goodnight();
                 }
                 connect_selector.selectedKeys().clear();
             }

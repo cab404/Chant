@@ -15,9 +15,9 @@ public abstract class LoaningPool<A> {
     private final int reserved;
 
     public class Borrow implements AutoCloseable, Iterable<A> {
-        private A value;
-        private Borrow next;
-        private int length = 0;
+        A value;
+        Borrow next;
+        int length = 0;
 
         private Borrow(A value) {
             this.value = value;
@@ -40,7 +40,7 @@ public abstract class LoaningPool<A> {
                 return next.get(index - 1);
         }
 
-        public void expand(int by) {
+        public synchronized void expand(int by) {
             this.length += by;
             if (next == null)
                 next = borrow(by);
@@ -64,7 +64,10 @@ public abstract class LoaningPool<A> {
                 data.add(this);
             }
             if (next != null)
-                next.close();
+                next.free();
+
+            next = null;
+            length = 0;
         }
 
         @Override
