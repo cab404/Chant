@@ -74,10 +74,10 @@ public class ClientInfo {
      * Frees resources by nulling links to them and atomizing borrow chain.
      */
     public void free() {
+        freed = true;
+
         lastUsedArray = null;
         data.free();
-
-        freed = true;
     }
 
     @Override

@@ -17,30 +17,25 @@ import java.nio.channels.SocketChannel;
 public class Start {
 
     public static void main(String... args) throws IOException {
-        System.out.println("Initializing selectors");
+        System.out.println("Initializing...");
+
         Selector connect_selector = Selector.open();
 
-        System.out.println("Initializing data input");
         ServerSocketChannel ssock = ServerSocketChannel.open();
 
-        System.out.println("Initializing configuration");
         Astral astral = new Astral(new AstralConfig(), new SimpleCIH());
-
-        System.out.println("Initializing reading threads");
 
         astral.rt.initialize();
         astral.maintenance.schedule(new TTLChecker(astral), 1000, 1000);
 
         new Thread(astral.rt, "RT #1").start();
 
-        System.out.println("Configuring connection acceptor");
-
         ssock.configureBlocking(true);
         ssock.bind(new InetSocketAddress(6934));
         ssock.configureBlocking(false);
         ssock.register(connect_selector, SelectionKey.OP_ACCEPT);
 
-        System.out.println("Starting infinite loop");
+        System.out.println("Starting.");
 
         //noinspection InfiniteLoopStatement
         while (true) {
@@ -106,6 +101,7 @@ public class Start {
                                     ("Hello, client at " + info.channel.socket().getInetAddress() + "!").getBytes()
                             )
                     );
+                    info.astral.processing.execute(new Disconnect(info));
                 } catch (IOException e) {
                     System.out.println("Exception while writing " + e);
                 }
