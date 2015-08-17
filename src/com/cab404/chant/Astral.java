@@ -34,7 +34,7 @@ public class Astral {
     public Astral(AstralConfig config, ClientInputHandler handler) {
         this.cfg = config;
         this.handler = handler;
-        this.bufferPool = new ByteBufferLoaningPool(Astral.this.cfg.maximumReceiveBufferMemory / Astral.this.cfg.receiveBufferSize);
+        this.bufferPool = new ByteBufferLoaningPool(this, Astral.this.cfg.maximumReceiveBufferMemory / Astral.this.cfg.receiveBufferSize);
         this.processing = new ThreadPoolExecutor(
                 1,
                 cfg.numberOfProcessingThreads,
@@ -53,24 +53,4 @@ public class Astral {
         this.rt = new ReaderTask(this);
     }
 
-    private class ByteBufferLoaningPool extends LoaningPool<ByteBuffer> {
-        public ByteBufferLoaningPool(int size) {
-            super(size);
-        }
-
-        @Override
-        ByteBuffer genObject() {
-            return ByteBuffer.allocate(cfg.receiveBufferSize);
-        }
-
-        @Override
-        void dispose(ByteBuffer object) {
-            // noop
-        }
-
-        @Override
-        void clear(ByteBuffer object) {
-            object.clear();
-        }
-    }
 }
