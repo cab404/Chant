@@ -3,7 +3,7 @@ package com.cab404.chant;
 import java.nio.ByteBuffer;
 
 /**
- * Sorry for no comments!
+ * Static methods. Might be first optimization targets in future.
  * Created at 01:45 on 13/08/15
  *
  * @author cab404
@@ -25,7 +25,6 @@ public class Methods {
             len += buf.position();
             if (buf.remaining() != 0)
                 break;
-
         }
         return len;
     }

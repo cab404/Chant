@@ -38,11 +38,10 @@ public class ServerThing {
         borrow.expand(5);
         borrow.free();
 
-        while (borrow != null){
+        while (borrow != null) {
             System.out.println(borrow.length);
             borrow = borrow.next;
         }
-
 
 
     }

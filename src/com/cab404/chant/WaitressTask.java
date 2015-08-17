@@ -1,68 +1,82 @@
 package com.cab404.chant;
 
 
-import java.io.IOException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Sorry for no comments!
+ * Clever girl in sexy dress... errr, I mean, task which
+ * handles data manipulation and schedules pushes to ClientInputHandler.
  * Created at 01:14 on 13/08/15
  *
  * @author cab404
  */
 public class WaitressTask implements Runnable {
 
-    private SocketReadInfo info;
+    private ClientInfo info;
+    /* 
+     * Made for possible situation, when waitress is dismissed as idle, and then immediately added 
+     * back - in that case if waitresses are assigned to different threads in thread pool executor, 
+     * unwanted concurrency may occur.
+     */
+    private final Lock timeTravelingWaitressLock = new ReentrantLock();
 
-    public WaitressTask(SocketReadInfo info) {
+    public WaitressTask(ClientInfo info) {
         this.info = info;
     }
 
-    boolean markedDead = false;
-
     @Override
     public void run() {
-        int currSize = Methods.buffersLength(info.lastUsedArray);
-        if (info.lastSize != currSize) {
-            System.out.println("Got some new data " + currSize);
-            info.lastSize = currSize;
-            info.lal = System.currentTimeMillis();
-            info.changed = true;
-            int cBufferLength = info.data.length();
 
-            if ((currSize + info.astral.cfg.enlargeCount) / info.astral.cfg.receiveBufferSize >= cBufferLength) {
-                info.data.expand(info.astral.cfg.enlargeCount);
-            }
-        } else {
-            long duration = System.currentTimeMillis() - info.lal;
-            if (duration > info.tts && info.changed) {
-                System.out.println("Send timeout reached on " + currSize + " bytes");
-                info.changed = false;
-                if (info.astral.assigner.assignHandler(info)) {
-                    System.out.println("Selector said we don't need no stinkin' connection!");
-                    markedDead = true;
-                }
-            }
-            if (duration > info.ttl) {
-                System.out.println("TTL reached.");
-                markedDead = true;
-            }
-        }
-
-        if (!markedDead)
-            info.astral.processing.execute(this);
-        else {
-            System.out.println("Dying right about now.");
-            dispose();
-        }
-    }
-
-    public void dispose() {
+        if (!timeTravelingWaitressLock.tryLock()) return;
         try {
-            info.data.free();
-            info.channel.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            
+            /*
+             * Yes, I know data can change during execution of this method, but it's should be fine :3
+             */
+            int currSize = Methods.buffersLength(info.lastUsedArray);
+
+            if (info.lastSize != currSize) {
+
+                info.lastSize = currSize;
+                info.lal = System.currentTimeMillis();
+                info.changed = true;
+
+            }
+
+            /* If tts is zero, then we're sending data straightaway - so we can't just write 'else' block */
+            if (info.lastSize == currSize || info.tts == 0) {
+
+                /* Time since last update */
+                long elapsed = System.currentTimeMillis() - info.lal;
+                
+                /* Checking if we are idle */
+                if (elapsed >= info.astral.cfg.pollingPeriod)
+                    info.markedIdle = true;
+                /* If we are idle, then sending all data to input handler and exiting for now. */
+                if (info.markedIdle) {
+                    System.out.println("Dismissed waitress");
+                    info.astral.handler.handleInput(info);
+                    info.changed = false;
+                    return;
+                }
+                
+                /* If tts reached, then sending data to CIH */
+                if (elapsed >= info.tts && info.changed) {
+                    info.astral.handler.handleInput(info);
+                    info.changed = false;
+                }
+
+            }
+
+            /* Dying if client is marked as dead */
+            if (!info.markedDead)
+                info.astral.processing.execute(this);
+
+        } finally {
+            timeTravelingWaitressLock.unlock();
         }
+
     }
 
 }

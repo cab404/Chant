@@ -1,6 +1,7 @@
 package com.cab404.chant;
 
 import java.nio.ByteBuffer;
+import java.util.Timer;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -14,24 +15,42 @@ import java.util.concurrent.TimeUnit;
  * @author cab404
  */
 public class Astral {
-    public final ThreadPoolExecutor processing;
     public final LoaningPool<ByteBuffer> bufferPool;
+    public final ThreadPoolExecutor processing;
+    public final ThreadPoolExecutor waitresses;
+    public final ClientInputHandler handler;
+    /**
+     * Buffer shrinking, data pushing, etc.
+     */
+    public final Timer maintenance;
+    /**
+     * Configuration :/
+     */
     public final AstralConfig cfg;
-
-    public final ChannelHandlerAssigner assigner;
-
+    public final ReaderTask rt;
+    
     public volatile boolean shutdownFlag = false;
 
-    public Astral(AstralConfig config, ChannelHandlerAssigner assigner) {
+    public Astral(AstralConfig config, ClientInputHandler handler) {
         this.cfg = config;
-        this.assigner = assigner;
+        this.handler = handler;
         this.bufferPool = new ByteBufferLoaningPool(Astral.this.cfg.maximumReceiveBufferMemory / Astral.this.cfg.receiveBufferSize);
         this.processing = new ThreadPoolExecutor(
                 1,
                 cfg.numberOfProcessingThreads,
                 20, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(20)
+                new ArrayBlockingQueue<Runnable>(100),
+                new PrioritizedThreadFactory(Thread.MAX_PRIORITY)
         );
+        this.waitresses = new ThreadPoolExecutor(
+                1,
+                cfg.numberOfProcessingThreads,
+                20, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(100),
+                new PrioritizedThreadFactory(Thread.MIN_PRIORITY)
+        );
+        this.maintenance = new Timer("maintenance");
+        this.rt = new ReaderTask(this);
     }
 
     private class ByteBufferLoaningPool extends LoaningPool<ByteBuffer> {

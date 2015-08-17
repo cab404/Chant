@@ -5,13 +5,16 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Finite buffer pool
+ * Recycling semi-concurrent semi-nonblocking pool <br/>
  * Created at 11:57 on 01/08/15
  *
  * @author cab404
  */
 public abstract class LoaningPool<A> {
 
+    /**
+     * How many objects do we preserve.
+     */
     private final int reserved;
 
     public class Borrow implements AutoCloseable, Iterable<A> {
@@ -40,6 +43,16 @@ public abstract class LoaningPool<A> {
                 return next.get(index - 1);
         }
 
+
+        private Borrow getBorrow(int index) {
+            if (index == 0)
+                return this;
+            if (next == null)
+                return null;
+            else
+                return next.getBorrow(index - 1);
+        }
+
         public synchronized void expand(int by) {
             this.length += by;
             if (next == null)
@@ -48,13 +61,28 @@ public abstract class LoaningPool<A> {
                 next.expand(by);
         }
 
+        /**
+         * Removes first {@code howMany} elements from borrow, and returns new head of borrow
+         */
+        public Borrow cutFirst(int howMany) {
+            if (howMany == 0) return this;
+            Borrow newHead = getBorrow(howMany);
+            if (newHead == null) throw new IndexOutOfBoundsException();
+            Borrow oldTail = getBorrow(howMany - 1);
+            if (oldTail == null) throw new IndexOutOfBoundsException();
+
+            oldTail.next = null;
+            free();
+            return newHead;
+        }
+
         @Override
         public void close() {
             free();
         }
 
         /**
-         * Same as close - runs cleanup or dispose on all values
+         * Same as close - frees resources
          */
         public void free() {
             if (data.size() >= reserved)
@@ -98,14 +126,23 @@ public abstract class LoaningPool<A> {
         }
     }
 
-    private Queue<Borrow> data;
+    private final Queue<Borrow> data;
 
     public LoaningPool(int reservedCount) {
         this.reserved = reservedCount;
         data = new ConcurrentLinkedQueue<>();
     }
 
-    // Add multiple borrows
+    /**
+     * Empties preserved objects.
+     */
+    public void cleanPreserved() {
+        data.clear();
+    }
+
+    /**
+     * Borrows {@code howMuch} objects.
+     */
     public Borrow borrow(int howMuch) {
         if (data.isEmpty()) data.add(new Borrow(genObject()));
         Borrow poll = data.poll();
@@ -114,10 +151,19 @@ public abstract class LoaningPool<A> {
         return poll;
     }
 
+    /**
+     * Generates new object
+     */
     abstract A genObject();
 
+    /**
+     * Prepare your object to be completely obliterated.
+     */
     abstract void dispose(A object);
 
+    /**
+     * Prepare your object for a new user.
+     */
     abstract void clear(A object);
 
 }
