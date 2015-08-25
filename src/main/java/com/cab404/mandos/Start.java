@@ -1,4 +1,4 @@
-package com.cab404.chant;
+package com.cab404.mandos;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -17,42 +17,8 @@ import java.nio.channels.SocketChannel;
 public class Start {
 
     public static void main(String... args) throws IOException {
-        System.out.println("Initializing...");
-
-        Selector connect_selector = Selector.open();
-
-        ServerSocketChannel ssock = ServerSocketChannel.open();
-
-        Astral astral = new Astral(new AstralConfig(), new SimpleCIH());
-
-        astral.rt.initialize();
-        astral.maintenance.schedule(new TTLChecker(astral), 1000, 1000);
-
-        new Thread(astral.rt, "RT #1").start();
-
-        ssock.configureBlocking(true);
-        ssock.bind(new InetSocketAddress(6934));
-        ssock.configureBlocking(false);
-        ssock.register(connect_selector, SelectionKey.OP_ACCEPT);
-
-        System.out.println("Starting.");
-
-        //noinspection InfiniteLoopStatement
-        while (true) {
-            int select = connect_selector.select();
-            if (select != 0) {
-                astral.rt.pause();
-                for (SelectionKey ignored : connect_selector.selectedKeys()) {
-                    SocketChannel client = ssock.accept();
-                    client.configureBlocking(false);
-                    astral.rt.register(client);
-                    System.out.println("Initialized connection sequence to " + client.socket().getInetAddress());
-                }
-                astral.rt.resume();
-            }
-            connect_selector.selectedKeys().clear();
-        }
-
+        Astral astral = new Astral(new AstralConfiguration(), new SimpleCIH());
+        new ListenerLoop(astral).run();
     }
 
     private static class SimpleCIH implements ClientInputHandler {

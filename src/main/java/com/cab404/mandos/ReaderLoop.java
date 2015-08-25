@@ -1,4 +1,4 @@
-package com.cab404.chant;
+package com.cab404.mandos;
 
 import java.io.IOException;
 import java.nio.channels.*;
@@ -9,7 +9,7 @@ import java.nio.channels.*;
  *
  * @author cab404
  */
-public class ReaderTask implements Runnable {
+public class ReaderLoop implements Runnable {
 
     private volatile boolean pauseFlag = false;
 
@@ -21,7 +21,7 @@ public class ReaderTask implements Runnable {
 
     private Selector selector;
 
-    public ReaderTask(Astral where) {
+    public ReaderLoop(Astral where) {
         this.astral = where;
     }
 
@@ -87,7 +87,7 @@ public class ReaderTask implements Runnable {
     public void run() {
 
         System.out.println("Started reader task");
-        while (!astral.shutdownFlag) {
+        while (!astral.collapse) {
             try {
 
                 selector.select();

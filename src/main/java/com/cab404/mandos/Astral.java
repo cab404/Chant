@@ -1,4 +1,4 @@
-package com.cab404.chant;
+package com.cab404.mandos;
 
 import java.nio.ByteBuffer;
 import java.util.Timer;
@@ -26,12 +26,15 @@ public class Astral {
     /**
      * Configuration :/
      */
-    public final AstralConfig cfg;
-    public final ReaderTask rt;
-    
-    public volatile boolean shutdownFlag = false;
+    public final AstralConfiguration cfg;
+    public final ReaderLoop rt;
 
-    public Astral(AstralConfig config, ClientInputHandler handler) {
+    /**
+     * If our little server world should collapse
+     */
+    public volatile boolean collapse = false;
+
+    public Astral(AstralConfiguration config, ClientInputHandler handler) {
         this.cfg = config;
         this.handler = handler;
         this.bufferPool = new ByteBufferLoaningPool(this, Astral.this.cfg.maximumReceiveBufferMemory / Astral.this.cfg.receiveBufferSize);
@@ -50,7 +53,7 @@ public class Astral {
                 new PrioritizedThreadFactory(Thread.MIN_PRIORITY)
         );
         this.maintenance = new Timer("maintenance");
-        this.rt = new ReaderTask(this);
+        this.rt = new ReaderLoop(this);
     }
 
 }

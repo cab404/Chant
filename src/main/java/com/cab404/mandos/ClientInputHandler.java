@@ -1,4 +1,4 @@
-package com.cab404.chant;
+package com.cab404.mandos;
 
 /**
  * Sorry for no comments!

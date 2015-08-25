@@ -1,4 +1,4 @@
-package com.cab404.chant;
+package com.cab404.mandos;
 
 import java.util.concurrent.TimeUnit;
 
@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author cab404
  */
-public class AstralConfig {
+public class AstralConfiguration {
 
     /**
      * Number of threads used for task processing.
