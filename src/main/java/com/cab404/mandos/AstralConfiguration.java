@@ -1,5 +1,7 @@
 package com.cab404.mandos;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -10,6 +12,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class AstralConfiguration {
 
+    public InetSocketAddress bindTo = new InetSocketAddress(6934);
     /**
      * Number of threads used for task processing.
      */

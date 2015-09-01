@@ -37,7 +37,7 @@ public class ListenerLoop implements Runnable {
             new Thread(astral.rt, "RT").start();
 
             ssock.configureBlocking(true);
-            ssock.bind(new InetSocketAddress(6934));
+            ssock.bind(astral.cfg.bindTo);
             ssock.configureBlocking(false);
             ssock.register(connect_selector, SelectionKey.OP_ACCEPT);
 

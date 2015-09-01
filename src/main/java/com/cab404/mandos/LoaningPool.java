@@ -1,11 +1,12 @@
 package com.cab404.mandos;
 
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Recycling semi-concurrent semi-nonblocking pool <br/>
+ * Recycling semi-concurrent semi-nonblocking semi-sometimes-pool <br/>
  * Created at 11:57 on 01/08/15
  *
  * @author cab404
@@ -17,23 +18,85 @@ public abstract class LoaningPool<A> {
      */
     private final int reserved;
 
-    public class Borrow implements AutoCloseable, Iterable<A> {
-        A value;
-        Borrow next;
-        int length = 0;
+    private static boolean ANDROID = Package.getPackage("android.os") != null;
 
-        private Borrow(A value) {
+    public interface Borrow<A> extends AutoCloseable, Iterable<A> {
+        A get(int index);
+
+        int length();
+
+        void expand(int by);
+
+        void close();
+
+        Borrow cutFirst(int howMany);
+    }
+
+    public static class SingularBorrow<A> implements Borrow<A> {
+        private final LoaningPool<A> data;
+        public final LinkedList<A> entries;
+
+        private SingularBorrow(A value, LoaningPool<A> data) {
+            this.entries = new LinkedList<>();
+            entries.add(value);
+            this.data = data;
+        }
+
+        @Override
+        public A get(int index) {
+            return entries.get(index);
+        }
+
+        @Override
+        public int length() {
+            return entries.size();
+        }
+
+        @Override
+        public void expand(int by) {
+            for (int i = 0; i < by; i++)
+                entries.add(data.genObject());
+        }
+
+        @Override
+        public Borrow cutFirst(int howMany) {
+            for (int i = 0; i < howMany; i++)
+                data.dispose(entries.remove());
+            return this;
+        }
+
+        @Override
+        public void close() {
+            entries.clear();
+        }
+
+        @Override
+        public Iterator<A> iterator() {
+            return entries.iterator();
+        }
+    }
+
+    public static class RecursiveBorrow<A> implements Borrow<A> {
+        RecursiveBorrow<A> next;
+        LoaningPool<A> data;
+        int length = 0;
+        A value;
+
+        private RecursiveBorrow(A value, LoaningPool<A> data) {
             this.value = value;
+            this.data = data;
+        }
+
+        @Override
+        public int length() {
+            return length;
         }
 
         public A get() {
             return value;
         }
 
-        public int length() {
-            return length;
-        }
-
+        @Override
         public A get(int index) {
             if (index == 0)
                 return value;
@@ -44,7 +107,7 @@ public abstract class LoaningPool<A> {
         }
 
 
-        private Borrow getBorrow(int index) {
+        private RecursiveBorrow getBorrow(int index) {
             if (index == 0)
                 return this;
             if (next == null)
@@ -53,10 +116,14 @@ public abstract class LoaningPool<A> {
                 return next.getBorrow(index - 1);
         }
 
+        @Override
         public synchronized void expand(int by) {
             this.length += by;
             if (next == null)
-                next = borrow(by);
+                //noinspection unchecked
+                next = data.data.isEmpty()
+                        ? new RecursiveBorrow<>(data.genObject(), data)
+                        : (RecursiveBorrow<A>) data.data.poll();
             else
                 next.expand(by);
         }
@@ -64,11 +131,12 @@ public abstract class LoaningPool<A> {
         /**
          * Removes first {@code howMany} elements from borrow, and returns new head of borrow
          */
+        @Override
         public Borrow cutFirst(int howMany) {
             if (howMany == 0) return this;
-            Borrow newHead = getBorrow(howMany);
+            RecursiveBorrow newHead = getBorrow(howMany);
             if (newHead == null) throw new IndexOutOfBoundsException();
-            Borrow oldTail = getBorrow(howMany - 1);
+            RecursiveBorrow oldTail = getBorrow(howMany - 1);
             if (oldTail == null) throw new IndexOutOfBoundsException();
 
             oldTail.next = null;
@@ -85,12 +153,8 @@ public abstract class LoaningPool<A> {
          * Same as close - frees resources
          */
         public void free() {
-            if (data.size() >= reserved)
-                dispose(value);
-            else {
-                clear(value);
-                data.add(this);
-            }
+            data.offer(this);
+
             if (next != null)
                 next.free();
 
@@ -101,7 +165,7 @@ public abstract class LoaningPool<A> {
         @Override
         public Iterator<A> iterator() {
             return new Iterator<A>() {
-                Borrow now = Borrow.this;
+                RecursiveBorrow<A> now = RecursiveBorrow.this;
 
                 @Override
                 public boolean hasNext() {
@@ -126,28 +190,41 @@ public abstract class LoaningPool<A> {
         }
     }
 
-    private final Queue<Borrow> data;
+    private final Queue<Borrow<A>> data;
 
     public LoaningPool(int reservedCount) {
         this.reserved = reservedCount;
-        data = new ConcurrentLinkedQueue<>();
+        if (ANDROID)
+            data = new ConcurrentLinkedQueue<>();
+        else
+            data = null;
     }
 
     /**
      * Empties preserved objects.
      */
     public void cleanPreserved() {
-        data.clear();
+        if (data != null)
+            data.clear();
     }
 
     /**
      * Borrows {@code howMuch} objects.
      */
     public Borrow borrow(int howMuch) {
-        if (data.isEmpty()) data.add(new Borrow(genObject()));
-        Borrow poll = data.poll();
-        poll.length = howMuch;
-        if (howMuch > 1) poll.next = borrow(howMuch - 1);
+        Borrow poll;
+
+        // Borrowing first element
+        if (ANDROID)
+            if (data.isEmpty())
+                poll = new RecursiveBorrow<>(genObject(), this);
+            else
+                poll = data.poll();
+        else
+            poll = new SingularBorrow<>(genObject(), this);
+
+        poll.expand(howMuch - 1);
+
         return poll;
     }
 
@@ -155,6 +232,16 @@ public abstract class LoaningPool<A> {
      * Generates new object
      */
     abstract A genObject();
+
+    protected void offer(Borrow<A> borrow) {
+        if (ANDROID)
+            if (data.size() >= reserved)
+                dispose(borrow.get(0));
+            else {
+                clear(borrow.get(0));
+                data.add(borrow);
+            }
+    }
 
     /**
      * Prepare your object to be completely obliterated.

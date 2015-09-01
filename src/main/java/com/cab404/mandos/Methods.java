@@ -10,12 +10,15 @@ import java.nio.ByteBuffer;
  */
 public class Methods {
 
-    public static ByteBuffer[] borrowToArray(LoaningPool<ByteBuffer>.Borrow borrow) {
+    public static ByteBuffer[] borrowToArray(LoaningPool.Borrow<ByteBuffer> borrow) {
         ByteBuffer[] bf = new ByteBuffer[borrow.length()];
         int i = 0;
-        for (ByteBuffer buf : borrow) {
-            bf[i++] = buf;
-        }
+        if (borrow instanceof LoaningPool.SingularBorrow)
+            ((LoaningPool.SingularBorrow<ByteBuffer>) borrow).entries.toArray(bf);
+        else
+            for (ByteBuffer buf : borrow)
+                bf[i++] = buf;
+
         return bf;
     }
 

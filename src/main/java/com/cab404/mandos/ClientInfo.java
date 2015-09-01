@@ -19,7 +19,7 @@ public class ClientInfo {
     /**
      * Can change during read
      */
-    public LoaningPool<ByteBuffer>.Borrow data;
+    public LoaningPool.Borrow<ByteBuffer> data;
     public ByteBuffer[] lastUsedArray;
 
     /**
@@ -77,7 +77,8 @@ public class ClientInfo {
         freed = true;
 
         lastUsedArray = null;
-        data.free();
+
+        data.close();
     }
 
     @Override

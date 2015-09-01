@@ -28,11 +28,14 @@ public class WaitressTask implements Runnable {
     @Override
     public void run() {
         /* Simple */
-        if (info.freed) {
-            System.out.println("NULL");
+        if (info.freed || info.markedDead) {
+            System.out.println("We're dead, sorry.");
             return;
         }
-        if (!timeTravelingWaitressLock.tryLock()) return;
+        if (!timeTravelingWaitressLock.tryLock()) {
+            System.out.println("Ultra-rare time traveling waitress detected!");
+            return;
+        }
         try {
             /*
              * Yes, I know data can change during execution of this method, but it's should be fine :3
